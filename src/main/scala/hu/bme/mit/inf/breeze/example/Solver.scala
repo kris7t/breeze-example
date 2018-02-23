@@ -2,36 +2,39 @@ package hu.bme.mit.inf.breeze.example
 
 import breeze.linalg._
 
-sealed trait Solution
-case class ValidSolution(p: DenseVector[Double]) extends Solution
-case object NotAMarkovChain extends Solution
-case object ReducibleMarkovChain extends Solution
+sealed trait SolverError
+case object NotAMarkovChain extends SolverError
+case class ReducibleMarkovChain(kernelDimension: Int) extends SolverError
 
 trait Solver {
-  def solveSteadyState(q: DenseMatrix[Double]): Solution
+  def solveSteadyState(q: DenseMatrix[Double]): Solver.Solution
 }
 
 object Solver {
+  type Solution = Either[SolverError, DenseVector[Double]]
+
   def solutionToMessage(solution: Solution): String = solution match {
-    case ValidSolution(p) => s"Got a solution: $p"
-    case NotAMarkovChain => "Not a Markov chain"
-    case ReducibleMarkovChain => "Solution is not unique"
+    case Right(p) => s"Got a solution: $p"
+    case Left(NotAMarkovChain) => "Not a Markov chain"
+    case Left(ReducibleMarkovChain(d)) => s"Solution is not unique, there are $d solutions"
   }
 }
 
-case class SimpleSolver(threshold: Double) extends Solver {
+class SimpleSolver(threshold: Double) extends Solver {
   require(threshold > 0, "threshold must be positive")
 
-  override def solveSteadyState(q: DenseMatrix[Double]): Solution = {
+  override def solveSteadyState(q: DenseMatrix[Double]): Solver.Solution = {
     val eig.Eig(re, im, v) = eig(q.t)
-    for (i <- 0 until re.length) {
-      if (re(i) * re(i) + im(i) * im(i) <= threshold) {
-        val solution = v(::, 1)
-        return ValidSolution(solution / sum(solution))
-      }
+    0 until v.cols filter { i => re(i) * re(i) + im(i) * im(i) <= threshold} match {
+      case Seq() => Left(NotAMarkovChain)
+      case Seq(i) =>
+        val solution = v(::, i)
+        Right(solution / sum(solution))
+      case indexes => Left(ReducibleMarkovChain(indexes.size))
     }
-    NotAMarkovChain
   }
 }
 
-object SimpleSolver extends SimpleSolver(1e-10)
+object SimpleSolver extends SimpleSolver(1e-10) {
+  def withThreshold(threshold: Double): SimpleSolver = new SimpleSolver(threshold)
+}

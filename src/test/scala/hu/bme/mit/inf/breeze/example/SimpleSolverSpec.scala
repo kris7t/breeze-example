@@ -10,7 +10,7 @@ class SimpleSolverSpec extends FlatSpec with Matchers {
       (1.0, -2.0, 1.0),
       (1.0, 1.0, -2.0)
     )
-    val ValidSolution(solution) = SimpleSolver.solveSteadyState(q)
+    val Right(solution) = SimpleSolver.solveSteadyState(q)
     val expected = DenseVector(1.0, 2.0, 2.0) / 5.0
 
 
